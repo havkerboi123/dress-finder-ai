@@ -1,47 +1,72 @@
 import chromadb
-from chromadb.config import Settings
-from chromadb.utils.data_loaders import ImageLoader
 from chromadb.utils.embedding_functions import OpenCLIPEmbeddingFunction
+from chromadb.utils.data_loaders import ImageLoader
+from PIL import Image
+import os
 
-# Path where Chroma DB is stored
-CHROMA_PATH = "./chroma_db"
-COLLECTION_NAME = "sapphire_collection"
+CHROMA_PATH = "/Users/mhmh/Desktop/dress-finder-ai/chroma_db"
 
-# Initialize Chroma client (persistent)
-client = chromadb.Client(
-    Settings(
-        persist_directory=CHROMA_PATH,
-        anonymized_telemetry=False
-    )
-)
+#connecting to existing database
+client = chromadb.PersistentClient(path=CHROMA_PATH)
 
-# Same embedding + loader as indexing time
+#same embedding function and data loader
 embedding_function = OpenCLIPEmbeddingFunction()
 data_loader = ImageLoader()
 
-# Load existing collection
+
 collection = client.get_collection(
-    name=COLLECTION_NAME,
+    name="sapphire_collection",
     embedding_function=embedding_function,
     data_loader=data_loader
 )
 
-# -------- QUERY --------
-query_text = "blue embroidered women dress"
-n_results = 5
+def query_by_text(query_text, n_results=5):
+    
+    results = collection.query(
+        query_texts=[query_text],
+        n_results=n_results,
+        include=["distances", "uris", "metadatas"]
+    )
+    
+   
+    for i, (img_id, distance, uri) in enumerate(zip(
+        results['ids'][0],
+        results['distances'][0],
+        results['uris'][0]
+    ), 1):
+        print(f"\n{i}. Image ID: {img_id}")
+        print(f"   Path: {uri}")
+        print(f"   Distance: {distance:.4f}")
+    
+    return results
 
-results = collection.query(
-    query_texts=[query_text],
-    n_results=n_results,
-    include=["uris", "distances", "metadatas"]
-)
+def display_results(results):
+    """Optional: Display images if you have matplotlib"""
+    try:
+        import matplotlib.pyplot as plt
+        
+        uris = results['uris'][0]
+        n = len(uris)
+        
+        fig, axes = plt.subplots(1, min(n, 5), figsize=(15, 3))
+        if n == 1:
+            axes = [axes]
+        
+        for i, uri in enumerate(uris[:5]):
+            img = Image.open(uri)
+            axes[i].imshow(img)
+            axes[i].axis('off')
+            axes[i].set_title(f"Result {i+1}")
+        
+        plt.tight_layout()
+        plt.show()
+    except ImportError:
+        print("dimag kharab")
 
-# -------- DISPLAY RESULTS --------
-print(f"\nTop {n_results} results for: '{query_text}'\n")
-
-for i in range(len(results["uris"][0])):
-    print(f"Result #{i + 1}")
-    print("Image Path:", results["uris"][0][i])
-    print("Distance:", results["distances"][0][i])
-    print("Metadata:", results["metadatas"][0][i])
-    print("-" * 40)
+# Example usage
+if __name__ == "__main__":
+   
+    results = query_by_text("blue drees plain no patterns etc", n_results=3)
+    display_results(results)
+    
+    
